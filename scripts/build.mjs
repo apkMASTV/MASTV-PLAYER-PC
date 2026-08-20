@@ -10,7 +10,11 @@
  * Este script carga las credenciales desde certs/signing.env (que no se sube al
  * repositorio) y avisa de forma visible si no puede firmar.
  *
- * Uso:  node scripts/build.mjs [--target nsis|appx|all] [--unsigned]
+ * Uso:  node scripts/build.mjs [--target nsis|appx|all] [--unsigned] [--publish]
+ *
+ * Con --publish sube el resultado a la release de GitHub y genera el latest.yml
+ * que electron-updater necesita para detectar la versión nueva. El token se
+ * toma de GH_TOKEN, o de la sesión de la CLI de GitHub si no está definido.
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -19,8 +23,9 @@ import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-const args         = process.argv.slice(2)
+const args          = process.argv.slice(2)
 const allowUnsigned = args.includes('--unsigned')
+const doPublish     = args.includes('--publish')
 const targetArg     = args.indexOf('--target')
 const target        = targetArg !== -1 ? args[targetArg + 1] : 'nsis'
 
@@ -75,13 +80,29 @@ if (!canSign) {
   console.warn(`build: aviso — compilando SIN FIRMA (${motivo}).`)
 }
 
+// ── Publicación ─────────────────────────────────────────────────────────────
+const publishArgs = []
+if (doPublish) {
+  if (!process.env.GH_TOKEN) {
+    // Reutiliza la sesión de la CLI de GitHub para no guardar el token en disco
+    const token = spawnSync('gh', ['auth', 'token'], { encoding: 'utf8', shell: true })
+    const value = (token.stdout || '').trim()
+    if (token.status !== 0 || !value) {
+      console.error('build: no hay token de GitHub. Define GH_TOKEN o ejecuta "gh auth login".')
+      process.exit(1)
+    }
+    process.env.GH_TOKEN = value
+  }
+  publishArgs.push('--publish', 'always')
+}
+
 // ── Pasos ───────────────────────────────────────────────────────────────────
 // npx necesita shell en Windows (es un .cmd); process.execPath no debe usarlo,
 // porque la ruta de Node lleva espacios y el shell la partiría en dos.
 const steps = [
   ['Compilando renderer', 'npx', ['vite', 'build'], true],
   ['Ofuscando código',    process.execPath, [join(root, 'scripts', 'protect.mjs')], false],
-  ['Empaquetando',        'npx', ['electron-builder', ...targets[target]], true],
+  ['Empaquetando',        'npx', ['electron-builder', ...targets[target], ...publishArgs], true],
 ]
 
 for (const [label, cmd, cmdArgs, useShell] of steps) {

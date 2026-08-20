@@ -1,7 +1,7 @@
 # MASTV Player — Estado del proyecto
 
 Documento de continuidad. Resume qué es la aplicación, qué se corrigió, cómo se
-compila y qué queda pendiente. **Versión actual: v1.0.7.**
+compila y qué queda pendiente. **Versión actual: v2.0.0.**
 
 ---
 
@@ -19,8 +19,15 @@ Reproductor IPTV de escritorio para Windows, en Electron + React.
 | Persistencia | electron-store | `src/services/persistence.js` |
 | Actualizaciones | electron-updater | Publicadas en GitHub (`apkMASTV/MASTV-PLAYER-PC`) |
 
-**Convención de versiones:** solo sube el último dígito. v1.0.7 → v1.0.8 → v1.0.9.
+**Convención de versiones:** solo sube el último dígito. v2.0.0 → v2.0.1 → v2.0.2.
 Se cambia en el campo `version` de `package.json`.
+
+> **Por qué se empieza en 2.0.0 y no en 1.0.7.** `electron-updater` compara las
+> versiones numéricamente, y en GitHub ya había publicada una **v1.4.1 con 1719
+> descargas**. Con un número como 1.0.7 pasarían dos cosas malas: esos usuarios
+> nunca recibirían la actualización (1.0.7 es menor que 1.4.1), y una instalación
+> nueva vería la 1.4.1 como más reciente e intentaría actualizarse *hacia atrás*.
+> **Nunca publiques una versión por debajo de la última que ya esté en GitHub.**
 
 ---
 
@@ -32,8 +39,14 @@ npm run dist:msix     # paquete APPX
 npm run dist -- --unsigned   # solo si quieres saltarte la firma a propósito
 ```
 
-El resultado aparece en `instalador/MASTV-Player-Setup-1.0.7.exe` (~81 MB), en la
+El resultado aparece en `instalador/MASTV-Player-Setup-2.0.0.exe` (~81 MB), en la
 carpeta principal del proyecto para tenerlo a mano.
+
+Para publicar una versión nueva en GitHub y que los usuarios la reciban solos:
+
+```powershell
+npm run release        # compila, firma, sube la release y genera latest.yml
+```
 
 `npm run dist` ejecuta `scripts/build.mjs`, que hace tres pasos: compila el
 renderer con Vite, ofusca el código propio y empaqueta con electron-builder.
@@ -242,5 +255,5 @@ Remove-Item "$env:APPDATA\mastv-player\config.json" -Force
 Comprobar la firma del instalador:
 
 ```powershell
-Get-AuthenticodeSignature "instalador\MASTV-Player-Setup-1.0.7.exe" | Format-List Status, SignerCertificate
+Get-AuthenticodeSignature "instalador\MASTV-Player-Setup-2.0.0.exe" | Format-List Status, SignerCertificate
 ```

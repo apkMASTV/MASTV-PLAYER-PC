@@ -1,6 +1,6 @@
 {
   "name": "mastv-player",
-  "version": "1.0.7",
+  "version": "2.0.0",
   "description": "MASTV Player - Reproductor IPTV para Windows",
   "author": "MASTV",
   "main": "electron/main.js",
@@ -11,6 +11,7 @@
     "dist": "node scripts/build.mjs --target nsis",
     "dist:msix": "node scripts/build.mjs --target appx",
     "dist:all": "node scripts/build.mjs --target all",
+    "release": "node scripts/build.mjs --target nsis --publish",
     "electron": "electron .",
     "sign:appx": "powershell -ExecutionPolicy Bypass -File assets/sign-appx.ps1"
   },
