@@ -48,6 +48,20 @@ Para publicar una versión nueva en GitHub y que los usuarios la reciban solos:
 npm run release        # compila, firma, sube la release y genera latest.yml
 ```
 
+> **Antes de publicar hay que crear y subir la etiqueta**, porque GitHub rechaza
+> una release publicada cuya etiqueta no existe (`Published releases must have a
+> valid tag`):
+>
+> ```powershell
+> git tag v2.0.1
+> git push origin v2.0.1
+> npm run release
+> ```
+>
+> Comprueba después que la release tiene **tres** archivos: el `.exe`, el
+> `.blockmap` y el **`latest.yml`**. Sin `latest.yml` el actualizador no
+> detecta nada.
+
 `npm run dist` ejecuta `scripts/build.mjs`, que hace tres pasos: compila el
 renderer con Vite, ofusca el código propio y empaqueta con electron-builder.
 
@@ -73,7 +87,61 @@ avisar, y Windows le mostraba al usuario la advertencia de SmartScreen.
 
 ---
 
-## 3. Protección del código
+## 3. Actualización automática
+
+Publicada en GitHub (`apkMASTV/MASTV-PLAYER-PC`) mediante `electron-updater`.
+El flujo es: la app lee `latest.yml` de la última release, compara versiones,
+descarga el `.exe`, comprueba su integridad (sha512) y lo ejecuta con
+`--updated /S`, que **actualiza sobre la instalación existente sin desinstalar
+nada y conservando los datos del usuario**.
+
+### El problema de la verificación de firma
+
+`electron-updater` verificaba la firma del instalador descargado contra el
+`publisherName` que electron-builder escribe en `app-update.yml`. Esa
+comprobación exige que el estado de la firma sea `Valid`, y **un certificado
+autofirmado nunca lo es**: Windows devuelve `UnknownError` porque la cadena
+termina en una raíz no confiable.
+
+Resultado: la actualización se descargaba y **luego se rechazaba** con
+`ERR_UPDATER_INVALID_SIGNATURE`. Eso explica por qué la v1.4.1 acumuló 1719
+descargas mientras la v1.4.0 tenía 3: las apps descargaban la actualización una
+y otra vez sin poder instalarla nunca.
+
+La solución aplicada es `win.verifyUpdateCodeSignature: false` en
+`package.json`, que omite `publisherName` de `app-update.yml` y salta esa
+comprobación. **La integridad sigue protegida** por HTTPS y por el sha512 que
+viene en `latest.yml`; lo que se pierde es una defensa extra frente a una
+release de GitHub comprometida. Con un certificado de una autoridad reconocida
+esta opción podría volver a activarse.
+
+### Los usuarios de la v1.4.1 necesitan una instalación manual
+
+Importante: la v1.4.1 ya instalada lleva `publisherName` grabado en su propio
+`app-update.yml`, en el disco del usuario. Por eso **esos 1719 usuarios no
+pueden actualizarse solos a la 2.0.0**: hay que pedirles que descarguen e
+instalen la 2.0.0 una vez, a mano. A partir de ahí todas las siguientes
+(2.0.1, 2.0.2...) les llegarán automáticamente.
+
+### Verificado el 20/08/2026
+
+Probado de extremo a extremo, no por lectura de código:
+
+- Se instaló la **v1.4.1 real** descargada de GitHub y se ejecutó el instalador
+  de la 2.0.0 con los mismos argumentos que usa electron-updater
+  (`--updated /S --force-run`): la versión pasó de 1.4.1 a 2.0.0 **en el mismo
+  sitio, sin desinstalar**, el registro de Windows se actualizó y el
+  `config.json` del usuario se conservó intacto (7034 bytes).
+- Se ejecutó el electron-updater real contra la release publicada simulando una
+  versión instalada antigua:
+  - **Con** `publisherName`: detecta la 2.0.0, la descarga y **falla** con
+    `ERR_UPDATER_INVALID_SIGNATURE`. Reproduce el fallo original.
+  - **Sin** `publisherName`: detecta, descarga los 84 MB, **verifica correctamente**
+    y lanza el instalador con `--updated /S`. Cadena completa funcionando.
+
+---
+
+## 4. Protección del código
 
 Objetivo: que no sea trivial copiar la aplicación ni leer su lógica con ayuda de
 una IA. Implementado en `scripts/protect.mjs` con `javascript-obfuscator`.
@@ -107,7 +175,7 @@ sin necesidad de tocar el código.
 
 ---
 
-## 4. El sistema de demo
+## 5. El sistema de demo
 
 Demo de **3 horas, una sola vez por computadora**. Debe sobrevivir a que el
 usuario desinstale y reinstale la aplicación.
@@ -155,9 +223,9 @@ la máquina al activar el demo). Es la mejora pendiente más relevante.
 
 ---
 
-## 5. Correcciones aplicadas
+## 6. Correcciones aplicadas
 
-### 5.1 Seguridad
+### 6.1 Seguridad
 
 | Problema | Solución |
 |---|---|
@@ -165,7 +233,7 @@ la máquina al activar el demo). Es la mejora pendiente más relevante.
 | Credenciales del demo escritas en el código del renderer | Movidas al proceso principal, entregadas por IPC solo si el demo es válido |
 | DevTools accesibles en producción | Bloqueadas |
 
-### 5.2 Cargas infinitas (cinco causas distintas)
+### 6.2 Cargas infinitas (cinco causas distintas)
 
 1. `video.src = ''` disparaba un error falso que reiniciaba el ciclo de carga.
    Ahora se usa `removeAttribute('src')` + `load()`, con supresión de errores
@@ -178,7 +246,7 @@ la máquina al activar el demo). Es la mejora pendiente más relevante.
    splash se quedaba a medias. Resuelto con `backgroundThrottling: false` y un
    plazo máximo en la animación de progreso.
 
-### 5.3 Funcionalidad
+### 6.3 Funcionalidad
 
 | Problema | Solución |
 |---|---|
@@ -192,7 +260,7 @@ la máquina al activar el demo). Es la mejora pendiente más relevante.
 | Un registro de demo con fecha inválida dejaba el demo **sin límite**: el temporizador no arrancaba | Validación estricta de la fecha y fallo en cerrado |
 | Un reloj adelantado alargaba el demo (se midieron 53 h en lugar de 3) | La fecha futura se recorta al momento actual |
 
-### 5.4 Rendimiento
+### 6.4 Rendimiento
 
 - **Re-renderizados**: los componentes llamaban a `useStore()` sin selector, así
   que cualquier cambio del estado los redibujaba todos. Migrados a selectores
@@ -204,7 +272,7 @@ la máquina al activar el demo). Es la mejora pendiente más relevante.
 - **Fugas de listeners**: `preload.js` devuelve funciones de baja y los
   componentes las usan al desmontarse.
 
-### 5.5 Limpieza
+### 6.5 Limpieza
 
 - Código muerto retirado: `storeDelete`, `storeClear`, `updateOpenUrl`,
   `getActiveServer`, `setActiveServer`, `isMovieFav`, `isSeriesFav`, el
@@ -215,27 +283,31 @@ la máquina al activar el demo). Es la mejora pendiente más relevante.
 
 ---
 
-## 6. Pendientes
+## 7. Pendientes
 
 Por prioridad:
 
-1. **Validación del demo en servidor.** Es la única forma de cerrar el reinicio
+1. **Avisar a los usuarios de la v1.4.1** de que instalen la 2.0.0 a mano una
+   vez. No pueden llegar solos (ver sección 3). Es lo más urgente: son 1719.
+2. **Validación del demo en servidor.** Es la única forma de cerrar el reinicio
    manual borrando las tres capas locales.
-2. **Certificado de una autoridad reconocida (OV/EV).** Eliminaría la
-   advertencia de SmartScreen en cualquier PC; el autofirmado actual no lo hace.
-3. **`webSecurity: false` sigue activo** en `electron/main.js`. Está así para que
+3. **Certificado de una autoridad reconocida (OV/EV).** Resolvería dos cosas de
+   golpe: quitaría la advertencia de SmartScreen y permitiría volver a activar
+   `verifyUpdateCodeSignature`, que hoy está desactivada porque un certificado
+   autofirmado nunca supera la validación de Windows.
+4. **`webSecurity: false` sigue activo** en `electron/main.js`. Está así para que
    el vídeo cargue desde orígenes distintos, pero conviene sustituirlo por una
    política de CSP concreta en lugar de desactivar la protección entera.
-4. **Virtualización real de listas.** La paginación alivia el problema; una
+5. **Virtualización real de listas.** La paginación alivia el problema; una
    ventana virtual (`react-window`) lo resolvería del todo en listas enormes.
-5. **`globals.css` tiene ~2100 líneas.** Ya se comprobó que no hay clases
+6. **`globals.css` tiene ~2100 líneas.** Ya se comprobó que no hay clases
    muertas, pero convendría partirlo por componente.
-6. **Sin pruebas automatizadas.** La lógica del demo es el mejor candidato para
+7. **Sin pruebas automatizadas.** La lógica del demo es el mejor candidato para
    empezar: es la que protege el negocio y es fácil de probar en aislamiento.
 
 ---
 
-## 7. Comprobaciones útiles
+## 8. Comprobaciones útiles
 
 Ver el estado del demo en esta máquina:
 

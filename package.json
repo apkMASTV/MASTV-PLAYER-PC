@@ -27,6 +27,7 @@
     },
     "win": {
       "icon": "assets/icon.png",
+      "verifyUpdateCodeSignature": false,
       "signtoolOptions": {
         "signingHashAlgorithms": [
           "sha256"
