@@ -1,0 +1,88 @@
+{
+  "name": "mastv-player",
+  "version": "1.4.1",
+  "description": "MASTV Player - Reproductor IPTV para Windows",
+  "author": "MASTV",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "vite build",
+    "dist": "vite build && electron-builder --win nsis",
+    "dist:msix": "vite build && electron-builder --win appx",
+    "dist:all": "vite build && electron-builder --win nsis appx",
+    "electron": "electron .",
+    "sign:appx": "powershell -ExecutionPolicy Bypass -File assets/sign-appx.ps1"
+  },
+  "build": {
+    "appId": "com.mastv.player",
+    "productName": "MASTV Player",
+    "copyright": "Copyright © 2025 MASTV",
+    "directories": {
+      "output": "C:\\mastv-release"
+    },
+    "win": {
+      "icon": "assets/icon.png",
+      "signtoolOptions": {
+        "signingHashAlgorithms": [
+          "sha256"
+        ],
+        "rfc3161TimeStampServer": "http://timestamp.digicert.com"
+      }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MASTV Player",
+      "artifactName": "MASTV-Player-Setup-${version}.${ext}"
+    },
+    "appx": {
+      "applicationId": "MASTVPlayer",
+      "backgroundColor": "#0d1b2e",
+      "showNameOnTiles": true,
+      "identityName": "MASTVPlayer",
+      "publisher": "CN=MASTV"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "apkMASTV",
+      "repo": "MASTV-PLAYER-PC",
+      "releaseType": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "assets/logo.jpg",
+      "assets/icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "public",
+        "to": "public",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "electron-store": "^7.0.3",
+    "electron-updater": "^6.8.9",
+    "hls.js": "^1.5.13",
+    "mpegts.js": "^1.7.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "electron": "^31.1.0",
+    "electron-builder": "^26.15.2",
+    "vite": "^5.3.1",
+    "vite-plugin-electron": "^0.28.7",
+    "wait-on": "^7.2.0"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+release/
+C:/mastv-release/
+
+# Certificados con clave privada — NUNCA subir al repositorio ni empaquetar.
+# La clave vive en certs/ y se pasa a electron-builder por CSC_LINK/CSC_KEY_PASSWORD.
+certs/
+*.pfx
+
+# Logs
+*.log
+npm-debug.log*
+
+# Variables de entorno
+.env
+.env.local
