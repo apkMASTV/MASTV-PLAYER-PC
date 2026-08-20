@@ -5,10 +5,6 @@ import { loadM3UData } from '../services/m3uParser'
 import { XTREAM_SERVERS } from '../store/useStore'
 import { saveAccounts, isAccountExpired, accountLabel } from '../services/persistence'
 
-// Credenciales de la cuenta demo (hardcoded)
-const DEMO_USERNAME = 'apkautodemotest'
-const DEMO_PASSWORD = 'xrced4xb'
-
 // ── Icono de usuario genérico ─────────────────────────────────────────────
 function UserAvatar({ label }) {
   return (
@@ -85,6 +81,15 @@ export default function Login() {
       setError('Ingresa usuario y contraseña')
       return
     }
+
+    // Escribir las credenciales del demo a mano guardaba una cuenta normal,
+    // sin límite de 3 horas y con auto-login: se redirige al flujo del demo.
+    const isDemoAccount = await window.electronAPI?.demoIsDemoUser?.(username.trim())
+    if (isDemoAccount) {
+      await handleDemoLogin()
+      return
+    }
+
     setLoading(true)
     setError('')
     setServerStatus('Probando servidores...')
@@ -187,11 +192,24 @@ export default function Login() {
         setDemoLoading(false)
         return
       }
+      if (!result.ok) {
+        setError('No se pudo registrar el demo en esta computadora. Contacta con tu proveedor.')
+        setDemoLoading(false)
+        return
+      }
+
+      // Las credenciales las entrega el proceso principal sólo si el demo es válido
+      const { username: demoUser, password: demoPass } = result.credentials || {}
+      if (!demoUser || !demoPass) {
+        setError('No se pudo activar el demo. Contacta con tu proveedor.')
+        setDemoLoading(false)
+        return
+      }
 
       // Autenticar con la cuenta demo a través de los servidores Xtream
       let authResult
       try {
-        authResult = await xtreamApi.authenticate(DEMO_USERNAME, DEMO_PASSWORD)
+        authResult = await xtreamApi.authenticate(demoUser, demoPass)
       } catch {
         // La cuenta demo fue desactivada en el servidor
         setError('LOS DEMOS SE DESACTIVARON.\nConsulte con su proveedor para un demo manual o adquirir una cuenta directamente.')
@@ -202,7 +220,14 @@ export default function Login() {
       const userInfo  = authResult.user_info || null
       const expiresAt = result.startTime + (3 * 60 * 60 * 1000)   // 3 horas
 
-      setAuthenticated('xtream', { username: DEMO_USERNAME, password: DEMO_PASSWORD }, userInfo)
+      // Un vencimiento no numérico dejaría el demo corriendo sin fin
+      if (!Number.isFinite(expiresAt)) {
+        setError('No se pudo determinar la duración del demo. Contacta con tu proveedor.')
+        setDemoLoading(false)
+        return
+      }
+
+      setAuthenticated('xtream', { username: demoUser, password: demoPass }, userInfo)
       setDemoMode(expiresAt)
     } catch (err) {
       setError('Error inesperado. Intenta más tarde.')

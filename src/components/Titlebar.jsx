@@ -52,8 +52,13 @@ function UpdateButton() {
       8000
     )
     try {
-      await e.updateCheck()
+      const result = await e.updateCheck()
+      clearTimeout(fallbackTimerRef.current)
+      if (result?.error)          setStatus('error')
+      else if (result?.available) setStatus('available')
+      else                        setStatus('uptodate')
     } catch {
+      clearTimeout(fallbackTimerRef.current)
       setStatus('error')
     }
   }
